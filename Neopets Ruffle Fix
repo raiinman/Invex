@@ -1,0 +1,81 @@
+// ==UserScript==
+// @name         Neopets Ruffle Fix
+// @version      0.3
+// @description  Fixes Ruffle to ensure scores can be sent by blocking Flash game requests.
+// @author       RAiiNMAN
+// @match        https://www.neopets.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=neopets.com
+// @grant        GM_webRequest
+// @grant        GM_xmlhttpRequest
+// ==/UserScript==
+
+/*
+-----------------------------------------------
+ Project Version: 0.3
+ Last Updated: 2024-11-17 (replace with the current date)
+ Author: RAiiNMAN
+ -----------------------------------------------
+ Notes:
+ - Version 0.1: Initial script to block Flash-based game requests using GM_webRequest.
+ - Version 0.2: Added regex for improved URL matching and error handling.
+ - Version 0.3: Added GM_xmlhttpRequest fallback for environments without GM_webRequest support.
+ -----------------------------------------------
+*/
+
+(function() {
+    'use strict';
+
+    // Log script initialization
+    const scriptVersion = "0.3";
+    console.log(`Neopets Ruffle Fix Script Loaded - Version ${scriptVersion}`);
+
+    // Original base functionality
+    GM_webRequest([
+        { selector: '*neopets.com/games/play_flash.phtml*', action: 'cancel' },
+    ]);
+
+    // Primary shield with enhanced regex
+    try {
+        GM_webRequest([
+            {
+                selector: /.*neopets\.com\/games\/play_flash\.phtml.*/i, // Regex for robust URL matching
+                action: 'cancel'
+            },
+        ]);
+        console.log('Primary shield: Blocking requests to play_flash.phtml URLs...');
+    } catch (error) {
+        console.error('GM_webRequest is not supported in this environment:', error);
+
+        // Fallback shield: GM_xmlhttpRequest
+        console.log('Activating fallback mechanism using GM_xmlhttpRequest...');
+        interceptRequestsFallback();
+    }
+
+    /**
+     * Fallback function using GM_xmlhttpRequest to monitor and cancel requests.
+     */
+    function interceptRequestsFallback() {
+        // Monkey-patch XMLHttpRequest open method
+        const originalOpen = XMLHttpRequest.prototype.open;
+
+        XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+            if (/.*neopets\.com\/games\/play_flash\.phtml.*/i.test(url)) {
+                console.warn(`Blocked Flash game request: ${url}`);
+                return; // Block the request by not proceeding with it
+            }
+            return originalOpen.apply(this, arguments); // Allow other requests
+        };
+
+        // Additionally, monitor requests using GM_xmlhttpRequest
+        GM_xmlhttpRequest({
+            method: "GET",
+            url: "*://neopets.com/games/play_flash.phtml*",
+            onload: function(response) {
+                console.log("Fallback detected a blocked request:", response.finalUrl);
+            },
+            onerror: function(error) {
+                console.error("Error during fallback request interception:", error);
+            }
+        });
+    }
+})();
