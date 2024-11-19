@@ -1,0 +1,171 @@
+// ==UserScript==
+// @name         Neopets WheelSpin and Prize Handler
+// @namespace    https://www.neopets.com/
+// @version      6.1
+// @description  Handles "Spin the Wheel" interactions, prize popups, and ad handling.
+// @author       RAiiNMAN
+// @include      https://www.neopets.com/np25birthday/*
+// @grant        GM_xmlhttpRequest
+// @grant        GM_notification
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_addStyle
+// @run-at       document-idle
+// @noframes
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    let scriptRunning = true;
+
+    function logDebug(message) {
+        console.debug(`[DEBUG] ${message}`);
+    }
+
+    function logError(message) {
+        console.error(`[ERROR] ${message}`);
+    }
+
+    function updateStatus(message) {
+        const status = document.getElementById('reward-status');
+        if (status) {
+            status.textContent = message;
+        }
+        logDebug(message);
+    }
+
+    function stopScript(reason) {
+        logDebug(`Stopping script: ${reason}`);
+        updateStatus(`Script stopped: ${reason}`);
+        scriptRunning = false;
+    }
+
+    // Step 1: Spin the wheel
+    function handleSpinTheWheelButton() {
+        if (!scriptRunning) return;
+
+        const spinButton = document.getElementById('wheelButtonSpin');
+        if (spinButton) {
+            logDebug('Spin the Wheel button detected. Simulating click...');
+            spinButton.click();
+            updateStatus('Wheel spinning... Waiting for prize.');
+            setTimeout(handlePrizePopup, 5000); // Adjust timing if necessary
+        } else {
+            logError('Spin the Wheel button not found. Checking for Watch Ad button...');
+            checkForExtraSpin();
+        }
+    }
+
+    // Step 2: Handle prize popup
+    function handlePrizePopup() {
+        if (!scriptRunning) return;
+
+        const prizePopup = document.getElementById('wheelPrizePopup');
+        if (prizePopup && prizePopup.style.display !== 'none') {
+            logDebug('Prize popup detected.');
+            const successPrize = document.getElementById('responseDisplaySuccess');
+            const failPrize = document.getElementById('responseDisplayFail');
+
+            if (successPrize && successPrize.style.display !== 'none') {
+                logDebug('Prize success detected. Awarding prize...');
+                updateStatus('Congratulations! Prize awarded.');
+            } else if (failPrize && failPrize.style.display !== 'none') {
+                logDebug('No prize awarded. Displaying failure...');
+                updateStatus('No prize awarded this time.');
+            } else {
+                logError('Unknown prize popup state. Retrying...');
+                setTimeout(handlePrizePopup, 2000);
+            }
+        } else {
+            logDebug('Prize popup not visible yet. Retrying...');
+            setTimeout(handlePrizePopup, 2000);
+        }
+    }
+
+    // Step 3: Check for "Watch Ad" button for extra spin
+    function checkForExtraSpin() {
+        if (!scriptRunning) return;
+
+        const extraSpinButton = document.querySelector('button[onclick*="showAds"]');
+        if (extraSpinButton) {
+            logDebug('Extra spin button detected. Proceeding with ad handling...');
+            updateStatus('Extra spin available. Watching ad...');
+            setTimeout(handleWatchAdButton, 2000);
+        } else {
+            logError('No extra spin or ad button found. Stopping script.');
+            stopScript('No actions left to perform.');
+        }
+    }
+
+    // Step 4: Handle "Watch Ad" button interactions
+    function handleWatchAdButton() {
+        const adContainer = document.querySelector('#celtra-object-490');
+        if (adContainer) {
+            logDebug('Ad container found. Simulating confirmation...');
+            adContainer.click();
+            updateStatus('Ad interaction complete. Checking prize...');
+            setTimeout(handlePrizePopup, 2000);
+        } else {
+            logError('Ad container not found. Retrying...');
+            setTimeout(handleWatchAdButton, 2000);
+        }
+    }
+
+    // UI Initialization
+    function createInterface() {
+        logDebug('Creating UI panel...');
+        const panel = document.createElement('div');
+        panel.id = 'reward-panel';
+        panel.style = `
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            z-index: 10000;
+        `;
+
+        const title = document.createElement('div');
+        title.textContent = 'Neopets Spin and Prize Handler';
+        title.style = 'font-weight: bold; margin-bottom: 5px; text-align: center;';
+
+        const startButton = document.createElement('button');
+        startButton.textContent = 'Start Script';
+        startButton.style = `
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        `;
+        startButton.addEventListener('click', () => {
+            updateStatus('Starting script...');
+            handleSpinTheWheelButton();
+        });
+
+        const status = document.createElement('div');
+        status.id = 'reward-status';
+        status.style = 'margin-top: 10px; font-size: 0.9em; text-align: center;';
+        status.textContent = 'Idle...';
+
+        panel.appendChild(title);
+        panel.appendChild(startButton);
+        panel.appendChild(status);
+        document.body.appendChild(panel);
+        logDebug('UI panel created.');
+    }
+
+    // Initialize script
+    function init() {
+        logDebug('Initializing script...');
+        createInterface();
+    }
+
+    init();
+})();
