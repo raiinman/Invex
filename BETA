@@ -1,13 +1,15 @@
 // ==UserScript==
-// @name        Neopets Training Timer
-// @version     1.6.7 beta
+// @name        Neopets INVEX
+// @version     1.6.8 BETA
 // @author      RAiiNMAN
-// @contributors systematic-meerca
+// @description  Invex is a toolkit that enhances your Neopets experience by streamlining inventory management and item lookups. With quality-of-life features like quick actions for storing, trading, or selling items, integrated Jellyneo links, and improved performance, it makes Neopets smoother and more efficient.
 // @match       *://www.neopets.com/*
+// @updateURL   https://raw.githubusercontent.com/raiinman/Invex/main/BETA
+// @downloadURL https://raw.githubusercontent.com/raiinman/Invex/main/BETA
 // @grant       GM.setValue
 // @grant       GM.getValue
-// @description A themed training timer for Neopets with expandable extra sections and a custom "The Void Within" section, including a manual refresh button.
 // ==/UserScript==
+
 
 (async () => {
     const TYPES = { PIRATE: 'pirate', MYSTERY: 'mystery', NINJA: 'ninja' };
