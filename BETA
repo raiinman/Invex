@@ -1,0 +1,335 @@
+// ==UserScript==
+// @name        Neopets Training Timer
+// @version     1.6.7 beta
+// @author      RAiiNMAN
+// @contributors systematic-meerca
+// @match       *://www.neopets.com/*
+// @grant       GM.setValue
+// @grant       GM.getValue
+// @description A themed training timer for Neopets with expandable extra sections and a custom "The Void Within" section, including a manual refresh button.
+// ==/UserScript==
+
+(async () => {
+    const TYPES = { PIRATE: 'pirate', MYSTERY: 'mystery', NINJA: 'ninja' };
+
+    const SHOW_SCHOOLS = [TYPES.PIRATE, TYPES.MYSTERY, TYPES.NINJA];
+    const CLICKED_LINKS_TO_NEW_TAB = true;
+    const PERSIST_OPEN_STATE = false;
+
+    const NONE_TRAINING_ICON = "https://i.imgur.com/VnkRQ7S.png";
+    const TRAINING_IN_PROGRESS_ICON = "https://i.imgur.com/DlVHKrR.png";
+    const TRAINING_COMPLETE_ICON = "";
+
+    const SCHOOL_DATA = {
+        [TYPES.PIRATE]: {
+            name: 'Swashbuckling Academy',
+            link: 'https://www.neopets.com/pirates/academy.phtml?type=status',
+            completeIcon: 'https://i.imgur.com/lEBXsXz.png'
+        },
+        [TYPES.MYSTERY]: {
+            name: 'Mystery Island Training School',
+            link: 'https://www.neopets.com/island/training.phtml?type=status',
+            completeIcon: 'https://i.imgur.com/nDznBIR.png'
+        },
+        [TYPES.NINJA]: {
+            name: 'Secret Ninja Training School',
+            link: 'https://www.neopets.com/island/fight_training.phtml?type=status',
+            completeIcon: 'https://i.imgur.com/xsaSTVa.png'
+        }
+    };
+
+    const STORAGE = 'training-storage';
+    const PROPS = {
+        timersOpen: PERSIST_OPEN_STATE,
+        trainingComplete: false,
+        completeTrainingLocation: [],
+        petsInTraining: false
+    };
+
+    const injectStyles = () => {
+        const style = document.createElement('style');
+        style.textContent = `
+            #trainingTimers {
+                position: fixed;
+                bottom: 20px;
+                right: 30px;
+                z-index: 1000;
+                background: linear-gradient(180deg, #ffeb8f, #f4d03f);
+                border: 2px solid #d4ac0d;
+                border-radius: 8px;
+                width: 300px;
+                max-height: 400px;
+                overflow-y: auto;
+                font-family: Verdana, Arial, sans-serif;
+                font-size: 14px;
+                display: ${PROPS.timersOpen ? 'block' : 'none'};
+                text-align: center;
+            }
+
+            .schoolContainer {
+                background: #fdf2d6;
+                margin: 10px;
+                padding: 10px;
+                border: 1px solid #d4ac0d;
+                border-radius: 5px;
+            }
+
+            .schoolContainer .header {
+                font-weight: bold;
+                background: #f7dc6f;
+                padding: 5px;
+                margin-bottom: 10px;
+                border-radius: 5px;
+                text-align: center;
+                color: #6e2c00;
+                font-size: 14px;
+            }
+
+            .extraContainer {
+                margin: 10px;
+                padding: 10px;
+                border: 1px solid #d4ac0d;
+                border-radius: 5px;
+            }
+
+            .extraContainer .header {
+                font-weight: bold;
+                padding: 5px;
+                margin-bottom: 10px;
+                border-radius: 5px;
+                text-align: center;
+                font-size: 14px;
+            }
+
+            #trainingTimersToggleIcon {
+                position: fixed;
+                bottom: 20px;
+                right: 30px;
+                z-index: 1001;
+                width: 50px;
+                height: 50px;
+                border-radius: 25px;
+                border: 2px solid #d4ac0d;
+                background: linear-gradient(180deg, #f9e79f, #f4d03f);
+                cursor: pointer;
+            }
+
+            #manualRefreshButton {
+                background-color: #ffeb8f;
+                border: 2px solid #d4ac0d;
+                border-radius: 5px;
+                margin: 10px;
+                padding: 5px 10px;
+                font-size: 12px;
+                cursor: pointer;
+            }
+
+            #manualRefreshButton:hover {
+                background-color: #f7dc6f;
+            }
+        `;
+        document.head.appendChild(style);
+    };
+
+let countdownInterval = null; // To manage the countdown interval globally
+
+const startCountdown = (totalSeconds, trainingData) => {
+    // Clear any existing interval
+    if (countdownInterval) clearInterval(countdownInterval);
+
+    // Start the countdown
+    countdownInterval = setInterval(async () => {
+        if (totalSeconds <= 0) {
+            clearInterval(countdownInterval);
+            // Mark training as complete when the countdown ends
+            trainingData.timeRemaining = "Training Complete!";
+            trainingData.inTraining = false;
+            await GM.setValue("trainingStatus", trainingData);
+            await renderUI();
+            return;
+        }
+
+        totalSeconds--;
+
+        // Calculate hours, minutes, and seconds
+        const hrs = Math.floor(totalSeconds / 3600);
+        const mins = Math.floor((totalSeconds % 3600) / 60);
+        const secs = totalSeconds % 60;
+
+        // Update the timeRemaining field dynamically
+        trainingData.timeRemaining = `${hrs} hrs, ${mins} minutes, ${secs} seconds`;
+        await GM.setValue("trainingStatus", trainingData);
+        await renderUI();
+    }, 1000);
+};
+
+const fetchTrainingStatusDynamically = async () => {
+    try {
+        const response = await fetch("https://www.neopets.com/island/fight_training.phtml?type=status", { cache: "no-cache" });
+        const text = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, "text/html");
+
+        // Locate the training status element
+        const trainingElement = [...doc.querySelectorAll("td.content td")].find(td =>
+            td.textContent.includes("is currently studying")
+        );
+
+        let timeRemaining = "No remaining time available"; // Default if time isn't found
+
+        if (trainingElement) {
+            // Extract the status text (pet's activity and course)
+            const statusText = trainingElement.textContent.trim();
+
+            // Find the label "Time till course finishes :"
+            const timeLabelElement = [...doc.querySelectorAll("td.content td")].find(td =>
+                td.textContent.includes("Time till course finishes :")
+            );
+
+            if (timeLabelElement) {
+                // Use regex to find the time format
+                const timeMatch = timeLabelElement.textContent.match(/(\d+) hrs, (\d+) minutes, (\d+) seconds/);
+                if (timeMatch) {
+                    const [_, hrs, mins, secs] = timeMatch.map(Number); // Convert captured groups to numbers
+                    timeRemaining = `${hrs} hrs, ${mins} minutes, ${secs} seconds`;
+                }
+            }
+
+            // Store the data in a structured format
+            const trainingData = {
+                inTraining: true,
+                status: statusText, // Detailed training status
+                timeRemaining: timeRemaining, // Extracted time remaining
+                lastUpdated: new Date().toISOString(), // Timestamp of update
+            };
+
+            await GM.setValue("trainingStatus", trainingData);
+        } else {
+            // Clear data when no training is active
+            await GM.setValue("trainingStatus", {
+                inTraining: false,
+                status: "No Training",
+                timeRemaining: "",
+                lastUpdated: new Date().toISOString(),
+            });
+        }
+    } catch (error) {
+        console.error("Error fetching training status:", error);
+    }
+};
+
+
+
+
+
+
+const renderExtraSection = (id, headerText, url, backgroundColor, headerBackgroundColor, textColor) => `
+    <div class="extraContainer extraContainer-${id}" style="background: ${backgroundColor};">
+        <div class="header" style="background: ${headerBackgroundColor}; color: ${textColor};">
+            <a href="${url}" target="_blank" style="color: ${textColor}; text-decoration: none;">
+                ${headerText}
+            </a>
+        </div>
+    </div>
+`;
+
+const renderUI = async () => {
+    const trainingData = await GM.getValue("trainingStatus", {
+        inTraining: false,
+        status: "No Training",
+        timeRemaining: "",
+        lastUpdated: "",
+    });
+
+    const panel = document.getElementById("trainingTimers") || document.createElement("div");
+    panel.id = "trainingTimers";
+    panel.innerHTML = `
+        ${SHOW_SCHOOLS.map(school => `
+            <div class="schoolContainer">
+                <div class="header">
+                    <a href="${SCHOOL_DATA[school].link}" target="${CLICKED_LINKS_TO_NEW_TAB ? '_blank' : '_self'}">
+                        ${SCHOOL_DATA[school].name}
+                    </a>
+                </div>
+                <p style="margin: 0;">
+                    ${school === TYPES.NINJA ? trainingData.status : "Unavailable"}
+                </p>
+                <p style="margin: 0; font-style: italic;">
+                    ${school === TYPES.NINJA ? trainingData.timeRemaining : ""}
+                </p>
+                <small>Last Updated: ${new Date(trainingData.lastUpdated).toLocaleString()}</small>
+            </div>
+        `).join("")}
+        <button id="manualRefreshButton">Refresh Status</button>
+        ${renderExtraSection(
+            "1",
+            "The Void Within",
+            "https://www.neopets.com/track.php?id=2613",
+            "#240046", // Original background
+            "#9d4edd", // Original header
+            "#e0aaff" // Original text
+        )}
+        ${renderExtraSection(
+            "2",
+            "Advent Calendar",
+            "https://www.neopets.com/track.php?id=2620",
+            "#4CAF50", // Festive green background
+            "#D32F2F", // Classic red header
+            "#FFFFFF" // White text
+        )}
+        ${renderExtraSection(
+            "3",
+            "Experimental Area",
+            "#fff5e6", // Original background
+            "#ffe4cc", // Original header
+            "#b35900" // Original text
+        )}
+        ${renderExtraSection(
+            "4",
+            "Custom Add-ons",
+            "#e6f7ff", // Original background
+            "#cceeff", // Original header
+            "#003d66" // Original text
+        )}
+    `;
+
+    if (!document.body.contains(panel)) {
+        document.body.appendChild(panel);
+    }
+
+    const toggleIcon = document.getElementById("trainingTimersToggleIcon") || document.createElement("img");
+    toggleIcon.id = "trainingTimersToggleIcon";
+    toggleIcon.src = trainingData.inTraining ? TRAINING_IN_PROGRESS_ICON : NONE_TRAINING_ICON;
+    toggleIcon.title = `${trainingData.status} (${trainingData.timeRemaining})`;
+    toggleIcon.className = "trainingIcon";
+    toggleIcon.onclick = () => {
+        PROPS.timersOpen = !PROPS.timersOpen;
+        panel.style.display = PROPS.timersOpen ? "block" : "none";
+    };
+
+    if (!document.body.contains(toggleIcon)) {
+        document.body.appendChild(toggleIcon);
+    }
+
+    // Attach manual refresh event
+    document.getElementById("manualRefreshButton").onclick = async () => {
+        await fetchTrainingStatusDynamically();
+        await renderUI();
+    };
+};
+
+
+
+
+
+    injectStyles();
+
+    // Initial Render with Cached Data
+    await renderUI();
+
+    // Periodic Updates
+    setInterval(async () => {
+        await fetchTrainingStatusDynamically();
+        await renderUI();
+    }, 60 * 1000); // Update every 60 seconds
+})();
