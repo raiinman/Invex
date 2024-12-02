@@ -1,0 +1,104 @@
+
+Tampermonkey® by Jan Biniok
+v5.3.2
+	
+Neopets - Training ATK/DEF Boost Indicator
+© RAiiNMAN
+1
+// ==UserScript==
+2
+// @name           Neopets - Training ATK/DEF Boost Indicator
+3
+// @version        2024-11-17
+4
+// @namespace      https://www.neopets.com/
+5
+// @match          *://*.neopets.com/island/training.phtml?type=status
+6
+// @match          *://*.neopets.com/island/fight_training.phtml?type=status
+7
+// @match          *://*.neopets.com/pirates/academy.phtml?type=status
+8
+// @description    Provides more info about stats in training schools with properly aligned icons.
+9
+// @copyright      RAiiNMAN
+10
+// @icon           https://www.google.com/s2/favicons?sz=64&domain=neopets.com
+11
+// ==/UserScript==
+12
+​
+13
+(function () {
+14
+    'use strict';
+15
+​
+16
+    // Thresholds for boosts
+17
+    const BOOST_THRESHOLDS = [
+18
+        8, 13, 20, 35, 55, 85, 125, 200, 250, 300, 350, 400, 450, 500, 550, 600, 650, 700, 750,
+19
+    ];
+20
+​
+21
+    // League icons
+22
+    const LEAGUES = {
+23
+        l54: `<img src='https://i.imgur.com/qozqrtb.png' title='League 54' style='vertical-align:middle; margin-left:4px;'>`,
+24
+        l97: `<img src='https://i.imgur.com/TU1sWM7.png' title='League 97' style='vertical-align:middle; margin-left:4px;'>`,
+25
+        fyora: `<img src='https://images.neopets.com/neoboards/smilies/fyora.gif' style='width:10px; height:10px; vertical-align:middle; margin-left:4px;' title='Fyora League'>`,
+26
+        coltzan: `<img src='https://images.neopets.com/neoboards/smilies/coltzan.gif' style='width:10px; height:10px; vertical-align:middle; margin-left:4px;' title='King Coltzan Society League'>`,
+27
+        darigan: `<img src='https://images.neopets.com/neoboards/smilies/darigan.gif' style='width:10px; height:10px; vertical-align:middle; margin-left:4px;' title='Darigan Dedication League'>`,
+28
+    };
+29
+​
+30
+    /**
+31
+     * Generate league icon based on HP.
+32
+     * @param {number} hp - Current HP value.
+33
+     * @returns {string} - HTML for the league icon.
+34
+     */
+35
+    function getLeagueIcon(hp) {
+36
+        if (hp === 54) return LEAGUES.l54;
+37
+        if (hp === 97) return LEAGUES.l97;
+38
+        if (hp === 108) return LEAGUES.darigan;
+39
+        if (hp === 300) return LEAGUES.fyora;
+40
+        if (hp === 1000) return LEAGUES.coltzan;
+41
+        return '';
+42
+    }
+43
+​
+44
+    /**
+45
+     * Calculate and return boost information.
+46
+     * @param {number} stat - Current stat value.
+47
+     * @param {number} type - 0 for attack, 1 for defense.
+48
+     * @returns {string} - HTML with boost and league details.
+49
+     */
