@@ -1,0 +1,123 @@
+// ==UserScript==
+// @name           Neopets Bid Watcher
+// @description    Tracks active bids and displays across all Neopets pages.
+// @include        *neopets.com/*
+// @grant          none
+// ==/UserScript==
+
+// LocalStorage keys
+const CACHE_KEY = "activeBidsCache";
+const LAST_UPDATED_KEY = "lastUpdatedTime";
+
+async function fetchActiveBids() {
+    const bids = [];
+    const response = await fetch("https://www.neopets.com/auctions.phtml?type=leading");
+    const text = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text, "text/html");
+    const tableRows = [...doc.querySelectorAll("table tbody tr")];
+
+    tableRows.slice(1).forEach((row) => {
+        const cells = row.children;
+        if (cells.length > 6) {
+            const itemLink = cells[2]?.querySelector("a");
+            const itemName = itemLink?.textContent.trim();
+            let auctionLink = itemLink?.getAttribute("href");
+
+            // Ensure auction link is absolute
+            if (auctionLink && !auctionLink.startsWith("http")) {
+                auctionLink = `https://www.neopets.com/${auctionLink.replace(/^\//, "")}`;
+            }
+
+            const timeLeft = cells[4]?.textContent.trim();
+            if (itemName && timeLeft && auctionLink) {
+                bids.push({
+                    itemName,
+                    auctionLink,
+                    timeLeft,
+                    lastBid: cells[5]?.textContent.trim(),
+                    myLastBid: cells[6]?.textContent.trim(),
+                    lastBidder: cells[7]?.querySelector("font")?.textContent.trim(),
+                });
+            }
+        }
+    });
+
+    // Update cache
+    localStorage.setItem(CACHE_KEY, JSON.stringify(bids));
+    localStorage.setItem(LAST_UPDATED_KEY, new Date().toISOString());
+
+    return bids;
+}
+
+function createBidTrackerUI(bids, lastUpdated) {
+    const existingTracker = document.getElementById("bidTracker");
+    if (existingTracker) existingTracker.remove();
+
+    const trackerDiv = document.createElement("div");
+    trackerDiv.id = "bidTracker";
+    trackerDiv.style.position = "fixed";
+    trackerDiv.style.bottom = "10px";
+    trackerDiv.style.right = "10px";
+    trackerDiv.style.zIndex = "1000";
+    trackerDiv.style.backgroundColor = "#f9f9f9";
+    trackerDiv.style.border = "1px solid #ccc";
+    trackerDiv.style.borderRadius = "5px";
+    trackerDiv.style.padding = "10px";
+    trackerDiv.style.width = "300px";
+    trackerDiv.style.maxHeight = "300px";
+    trackerDiv.style.overflowY = "auto";
+
+    const formattedTime = new Date(lastUpdated).toLocaleTimeString();
+
+    trackerDiv.innerHTML = `
+        <h4 style="margin: 0; display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 0.9em; color: gray;">Last Updated: ${formattedTime}</span>
+            <span id="refreshIcon" style="cursor: pointer; font-size: 1.5em; display: inline-block;">🔄</span>
+        </h4>
+        <ul id="bidList" style="list-style: none; padding: 0; margin: 10px 0;"></ul>
+    `;
+
+    document.body.appendChild(trackerDiv);
+
+    const bidList = document.getElementById("bidList");
+    bids.forEach((bid) => {
+        const listItem = document.createElement("li");
+        listItem.style.marginBottom = "10px";
+        listItem.innerHTML = `
+            <strong style="color: #007bff;"><a href="${bid.auctionLink}" target="_blank" style="color: #007bff; text-decoration: none;">${bid.itemName}</a></strong><br>
+            <span style="color: #555;">Time Left:</span> <span style="color: #28a745;">${bid.timeLeft}</span><br>
+            <span style="color: #555;">Last Bid:</span> <span style="color: #dc3545;">${bid.lastBid}</span><br>
+            <span style="color: #555;">My Last Bid:</span> <span style="color: #17a2b8;">${bid.myLastBid}</span><br>
+            <span style="color: #555;">Last Bidder:</span> ${bid.lastBidder}
+        `;
+        bidList.appendChild(listItem);
+    });
+
+    // Add functionality to the refresh icon
+    document.getElementById("refreshIcon").addEventListener("click", async () => {
+        const updatedBids = await fetchActiveBids();
+        createBidTrackerUI(updatedBids, new Date().toISOString());
+    });
+}
+
+async function autoRefresh() {
+    setInterval(async () => {
+        const updatedBids = await fetchActiveBids();
+        createBidTrackerUI(updatedBids, new Date().toISOString());
+    }, 60000); // Refresh every 60 seconds (1 minute)
+}
+
+// Main function
+(async function main() {
+    const cachedBids = JSON.parse(localStorage.getItem(CACHE_KEY) || "[]");
+    const lastUpdated = localStorage.getItem(LAST_UPDATED_KEY) || new Date().toISOString();
+
+    // Load UI from cache initially
+    createBidTrackerUI(cachedBids, lastUpdated);
+
+    // Fetch and display live data immediately
+    const liveBids = await fetchActiveBids();
+    createBidTrackerUI(liveBids, new Date().toISOString());
+    autoRefresh(); // Start auto-refresh
+})();
