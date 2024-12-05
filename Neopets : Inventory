@@ -12,10 +12,10 @@
 // @include     nowhere
 // @exclude     *
 // @grant       GM_xmlhttpRequest
-// @require     https://github.com/w35l3y/localStorageDB/raw/master/localstoragedb.js
-// @require     https://github.com/w35l3y/userscripts/raw/master/includes/Includes_XPath/63808.user.js
-// @require     https://github.com/w35l3y/userscripts/raw/master/includes/Includes_HttpRequest/56489.user.js
-// @require     https://github.com/w35l3y/userscripts/raw/master/includes/Includes_Neopets_%5BBETA%5D/main.user.js
+// @require     https://github.com/raiinman/Invex/blob/main/Includes/localstoragedb.js
+// @require     https://github.com/raiinman/Invex/blob/main/Includes/XPath.user.js
+// @require     https://github.com/raiinman/Invex/blob/main/Includes/HttpRequest.user.js
+// @require     https://github.com/raiinman/Invex/blob/main/Includes/Neopets_%5BBETA%5D.user.js
 // ==/UserScript==
 
 var Inventory = function (page) {
