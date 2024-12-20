@@ -1,10 +1,12 @@
 // ==UserScript==
-// @name         Neopets Quick User hovercard
+// @name         Neopets - Quick User Hovercard
 // @author       ShiroMaō Studios
 // @namespace    Originally based on work by diceroll123
-// @version      1.1.2.1
-// Restored functionality and reintegrated username URL and Stamp Album icon.
+// @version      1.0
+// Initial release.
 // @include      *://*.neopets.com/*
+// @updateURL    https://raw.githubusercontent.com/raiinman/Invex/628e2cdd1010c439a54ec4fa75475fd8811c3be4/Neopets%20Quick%20User%20hovercard
+// @downloadURL  https://raw.githubusercontent.com/raiinman/Invex/628e2cdd1010c439a54ec4fa75475fd8811c3be4/Neopets%20Quick%20User%20hovercard
 // ==/UserScript==
 
 (function () {
